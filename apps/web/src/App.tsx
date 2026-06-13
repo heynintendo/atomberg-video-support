@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { AuthUser, JoinTokenResponse } from '@atomquest/shared';
-import { fetchMe } from './lib/api';
+import { fetchMe, getAgentToken, joinWithInvite } from './lib/api';
 import { Landing } from './components/Landing';
 import { RoleChooser } from './components/RoleChooser';
 import { Login } from './components/Login';
@@ -19,6 +19,9 @@ export function App() {
   const [view, setView] = useState<View>(inviteToken ? 'customer-join' : 'landing');
   const [agent, setAgent] = useState<AuthUser | null>(null);
   const [connection, setConnection] = useState<JoinTokenResponse | null>(null);
+  // The invite a customer joined with, kept so a dropped customer can rejoin via
+  // the same reconnect-mapped invite (same identity, never a duplicate).
+  const [customerInvite, setCustomerInvite] = useState<string | null>(inviteToken);
   // Brand beat only on a fresh first landing (never on a deep-link invite).
   const [beat, setBeat] = useState<boolean>(() => !inviteToken && !sessionStorage.getItem(BEAT_KEY));
 
@@ -38,10 +41,33 @@ export function App() {
   const goHome = () => setView('landing');
   const goAgent = () => setView(agent ? 'console' : 'login');
 
+  // Re-obtain a fresh token for the SAME identity after an unrecoverable drop:
+  // the agent re-enters via the session token, the customer via their invite.
+  // The deterministic server-side identity maps both back to their existing
+  // participant — never a duplicate. A fresh token changes CallRoom's key, which
+  // remounts it for a clean reconnect.
+  const rejoin = useCallback(async () => {
+    if (!connection) return;
+    if (connection.identity.startsWith('agent-')) {
+      if (!connection.sessionId) throw new Error('no_session');
+      setConnection(await getAgentToken(connection.sessionId));
+    } else {
+      setConnection(await joinWithInvite(customerInvite ?? ''));
+    }
+  }, [connection, customerInvite]);
+
   // A live call takes over the whole screen.
   if (connection) {
     const isAgent = connection.identity.startsWith('agent-');
-    return <CallRoom connection={connection} isAgent={isAgent} onLeave={() => setConnection(null)} />;
+    return (
+      <CallRoom
+        key={connection.token}
+        connection={connection}
+        isAgent={isAgent}
+        onLeave={() => setConnection(null)}
+        onRejoin={rejoin}
+      />
+    );
   }
 
   return (
@@ -76,7 +102,13 @@ export function App() {
         />
       )}
       {view === 'customer-entry' && (
-        <CustomerInviteEntry onJoined={setConnection} onHome={goHome} />
+        <CustomerInviteEntry
+          onJoined={(c, inv) => {
+            setCustomerInvite(inv);
+            setConnection(c);
+          }}
+          onHome={goHome}
+        />
       )}
       {/* Fallback: if console was requested without an agent yet, show login. */}
       {view === 'console' && !agent && (

@@ -372,6 +372,36 @@ a { color: inherit; }
   .aq-chat { width: 100vw; }
 }
 
+/* Reliability: reconnect indicators + connection-lost screen (Phase 7) */
+.aq-chip.reconnecting { background: rgba(253,184,21,0.16); color: var(--yellow); }
+.aq-spinner {
+  width: 13px; height: 13px; border-radius: 50%; display: inline-block;
+  border: 2px solid rgba(255,255,255,0.3); border-top-color: var(--yellow);
+  animation: aq-spin 0.7s linear infinite;
+}
+.aq-reconnect-scrim {
+  position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 0.6rem;
+  background: rgba(0,0,0,0.45); backdrop-filter: blur(2px);
+  color: #fff; font-weight: 500; font-family: var(--font-head);
+}
+.aq-reconnect-scrim .aq-spinner { width: 30px; height: 30px; border-width: 3px; }
+.aq-lost {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1.5rem;
+  background: radial-gradient(circle at 50% 35%, #1b1b1f, #0b0b0c);
+}
+.aq-lost-card {
+  background: #161618; border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-lg);
+  padding: 2.2rem 2rem; max-width: 380px; width: 100%; text-align: center; color: #fff;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+}
+.aq-lost-icon {
+  width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 1rem;
+  display: grid; place-items: center; background: rgba(253,184,21,0.14); color: var(--yellow);
+}
+.aq-lost .muted { color: #b6b6bd; }
+.aq-lost-actions { display: grid; gap: 0.6rem; margin-top: 0.4rem; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }

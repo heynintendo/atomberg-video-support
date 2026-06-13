@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db';
 import { webhookReceiver } from '../lib/livekit';
 import { roleFromMetadata } from '../lib/participants';
+import { markPresent, markAbsent, clearSessionPresence } from '../lib/presence';
 import { closeSession } from '../chat/hub';
 
 // LiveKit posts signed lifecycle events here. These populate the historical event
@@ -39,10 +40,14 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
       .catch(() => {});
 
     if (event.event === 'participant_joined' && identity) {
-      const open = await prisma.participant.findFirst({
-        where: { sessionId: session.id, identity, leftAt: null },
+      // Cancel any pending reconnect grace and map back to the SAME participant
+      // row (reopening a finalized one) so a rejoin never creates a duplicate.
+      markPresent(session.id, identity);
+      const existing = await prisma.participant.findFirst({
+        where: { sessionId: session.id, identity },
+        orderBy: { joinedAt: 'desc' },
       });
-      if (!open) {
+      if (!existing) {
         await prisma.participant.create({
           data: {
             sessionId: session.id,
@@ -51,15 +56,14 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
             joinedAt: at,
           },
         });
+      } else if (existing.leftAt) {
+        await prisma.participant.update({ where: { id: existing.id }, data: { leftAt: null } });
       }
     } else if (event.event === 'participant_left' && identity) {
-      const open = await prisma.participant.findFirst({
-        where: { sessionId: session.id, identity, leftAt: null },
-        orderBy: { joinedAt: 'desc' },
-      });
-      if (open) {
-        await prisma.participant.update({ where: { id: open.id }, data: { leftAt: at } });
-      }
+      // Do NOT finalize here: a brief drop may recover. Start the grace clock; the
+      // presence debounce / reconcile sweep stamps leftAt only if no same-identity
+      // return happens within the window. RoomService stays authoritative.
+      markAbsent(session.id, identity, at.getTime());
     } else if (event.event === 'room_finished') {
       await prisma.participant.updateMany({
         where: { sessionId: session.id, leftAt: null },
@@ -71,6 +75,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
           data: { status: 'ended', endedAt: at },
         });
       }
+      clearSessionPresence(session.id);
       closeSession(session.id);
     }
 

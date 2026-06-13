@@ -5,8 +5,6 @@ import type {
   CreateSessionResponse,
   JoinTokenResponse,
   ParticipantHistoryEntry,
-  ParticipantPresenceEntry,
-  PresenceState,
   SessionDetail,
   SessionPresenceView,
   SessionSummary,
@@ -16,8 +14,8 @@ import { prisma } from '../db';
 import { env } from '../env';
 import { requireAgent } from '../auth/middleware';
 import { signInvite } from '../auth/tokens';
-import { createJoinToken, ensureRoom, deleteRoom, roomService } from '../lib/livekit';
-import { reconcileSession } from '../lib/reconcile';
+import { createJoinToken, ensureRoom, deleteRoom } from '../lib/livekit';
+import { computePresence, clearSessionPresence } from '../lib/presence';
 import { closeSession } from '../chat/hub';
 
 const INVITE_TTL_SECONDS = 12 * 60 * 60; // 12 hours
@@ -142,8 +140,9 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
     },
   );
 
-  // Live presence — RoomService is authoritative. Reconcile first so a missed
-  // webhook can't leave the DB stale, then report present/left per participant.
+  // Live presence — RoomService is authoritative. computePresence reconciles the
+  // DB against it and applies the reconnect debounce, so a brief drop reads as
+  // "reconnecting" (not "left") and never churns history.
   app.get<{ Params: { id: string } }>(
     '/api/sessions/:id/presence',
     { preHandler: requireAgent },
@@ -153,40 +152,13 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
         reply.code(404);
         return { error: 'session_not_found' };
       }
-      await reconcileSession(session).catch(() => {});
 
-      let live: Awaited<ReturnType<typeof roomService.listParticipants>> = [];
-      try {
-        live = await roomService.listParticipants(session.roomName);
-      } catch {
-        // room gone; everyone is left
-      }
-      const liveIdentities = new Set(live.map((p) => p.identity));
-
-      const rows = await prisma.participant.findMany({
-        where: { sessionId: session.id },
-        orderBy: { joinedAt: 'asc' },
-      });
-      const participants: ParticipantPresenceEntry[] = rows.map((r) => {
-        const state: PresenceState = r.leftAt
-          ? 'left'
-          : liveIdentities.has(r.identity)
-            ? 'present'
-            : 'left';
-        return {
-          identity: r.identity,
-          role: r.role,
-          state,
-          joinedAt: r.joinedAt.toISOString(),
-          leftAt: r.leftAt ? r.leftAt.toISOString() : null,
-        };
-      });
-
+      const { liveCount, participants } = await computePresence(session);
       const view: SessionPresenceView = {
         sessionId: session.id,
         roomName: session.roomName,
         status: session.status,
-        liveCount: live.length,
+        liveCount,
         participants,
       };
       return view;
@@ -215,6 +187,7 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
         where: { id: session.id },
         data: { status: 'ended', endedAt: at },
       });
+      clearSessionPresence(session.id); // confirmed close: drop pending reconnect grace
       closeSession(session.id); // live chat closes; history persists
       return { ok: true };
     },

@@ -29,7 +29,7 @@ export function CustomerInviteEntry({
   onJoined,
   onHome,
 }: {
-  onJoined: (connection: JoinTokenResponse) => void;
+  onJoined: (connection: JoinTokenResponse, invite: string) => void;
   onHome: () => void;
 }) {
   const [value, setValue] = useState('');
@@ -46,7 +46,7 @@ export function CustomerInviteEntry({
     setBusy(true);
     setError(null);
     try {
-      onJoined(await joinWithInvite(token));
+      onJoined(await joinWithInvite(token), token);
     } catch (e) {
       setError(friendly(e instanceof Error ? e.message : ''));
       setBusy(false);

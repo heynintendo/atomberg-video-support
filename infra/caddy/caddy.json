@@ -1,0 +1,69 @@
+{
+  "admin": { "listen": "localhost:2019" },
+  "logging": { "logs": { "default": { "level": "INFO" } } },
+  "storage": { "module": "file_system", "root": "/data" },
+  "apps": {
+    "tls": {
+      "certificates": { "automate": ["api.thefoyers.club"] },
+      "automation": {
+        "policies": [
+          {
+            "subjects": ["api.thefoyers.club"],
+            "issuers": [
+              { "module": "acme", "ca": "{env.ACME_CA}", "email": "{env.ACME_EMAIL}" }
+            ]
+          }
+        ]
+      }
+    },
+    "layer4": {
+      "servers": {
+        "turn5349": {
+          "listen": [":5349"],
+          "routes": [
+            {
+              "handle": [
+                { "handler": "tls" },
+                { "handler": "proxy", "upstreams": [{ "dial": ["coturn:3478"] }] }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "http": {
+      "servers": {
+        "main": {
+          "listen": [":443"],
+          "routes": [
+            {
+              "match": [{ "host": ["api.thefoyers.club"] }],
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "match": [{ "path": ["/rtc", "/rtc/*"] }],
+                      "handle": [
+                        { "handler": "reverse_proxy", "upstreams": [{ "dial": "livekit:7880" }] }
+                      ]
+                    },
+                    {
+                      "match": [{ "path": ["/api/*", "/health", "/readyz"] }],
+                      "handle": [
+                        { "handler": "reverse_proxy", "upstreams": [{ "dial": "api:8080" }] }
+                      ]
+                    },
+                    {
+                      "handle": [{ "handler": "file_server", "root": "/srv/web" }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

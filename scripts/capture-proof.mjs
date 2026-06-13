@@ -18,6 +18,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const room = process.argv[2] ?? 'demo-room';
+const label = process.argv[3] ?? process.env.PROOF_LABEL ?? 'phase1-localhost';
+const phase = Number(process.env.PROOF_PHASE ?? 1);
+const scope = process.env.PROOF_SCOPE ?? 'localhost';
 const apiUrl = process.env.API_URL ?? 'http://localhost:8080';
 const metricsUrl = process.env.LIVEKIT_METRICS_URL ?? 'http://localhost:6789/metrics';
 
@@ -65,8 +68,8 @@ async function main() {
   const capturedAt = new Date().toISOString();
   const artifact = {
     artifact: 'atomquest-runtime-media-proof',
-    phase: 1,
-    scope: 'localhost',
+    phase,
+    scope,
     capturedAt,
     room,
     serverView,
@@ -80,7 +83,7 @@ async function main() {
 
   const outDir = join(repoRoot, 'proof');
   await mkdir(outDir, { recursive: true });
-  const outPath = join(outDir, `phase1-localhost-${room}-${capturedAt.replace(/[:.]/g, '-')}.json`);
+  const outPath = join(outDir, `${label}-${room}-${capturedAt.replace(/[:.]/g, '-')}.json`);
   await writeFile(outPath, JSON.stringify(artifact, null, 2));
 
   console.log(`room "${room}" — participants: ${serverView.numParticipants}`);

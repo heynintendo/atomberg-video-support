@@ -18,7 +18,16 @@ interface Props {
   onLeave: () => void;
 }
 
+// `?relay=1` forces the browser to gather only TURN relay candidates, which
+// pins media to the server's TURN/TLS path on 5349 — the same path a venue
+// network that blocks UDP would force.
+function isRelayForced(): boolean {
+  const value = new URLSearchParams(window.location.search).get('relay');
+  return value === '1' || value === 'true';
+}
+
 export function CallRoom({ connection, onLeave }: Props) {
+  const forceRelay = isRelayForced();
   return (
     <LiveKitRoom
       serverUrl={connection.url}
@@ -26,12 +35,26 @@ export function CallRoom({ connection, onLeave }: Props) {
       connect
       audio
       video
+      connectOptions={forceRelay ? { rtcConfig: { iceTransportPolicy: 'relay' } } : undefined}
       onDisconnected={onLeave}
       onError={(err) => {
         console.error('LiveKit connection error', err);
       }}
       style={{ height: '100vh' }}
     >
+      {forceRelay && (
+        <div
+          style={{
+            background: '#7c2d12',
+            color: '#fed7aa',
+            padding: '0.4rem 1rem',
+            fontFamily: 'system-ui, sans-serif',
+            fontSize: 13,
+          }}
+        >
+          Relay-only mode: media is forced through the server TURN/TLS path (5349).
+        </div>
+      )}
       <CallStage room={connection.room} identity={connection.identity} onLeave={onLeave} />
       {/* Plays every subscribed remote audio track. */}
       <RoomAudioRenderer />

@@ -27,6 +27,10 @@ const envSchema = z.object({
   ENTRA_TENANT_ID: z.string().optional(),
   ENTRA_CLIENT_ID: z.string().optional(),
   ENTRA_CLIENT_SECRET: z.string().optional(),
+  // Directory where LiveKit Egress writes composited recordings. The same volume
+  // is bind-mounted into the egress (read-write) and API (read-only) containers,
+  // so the API can stream files the egress service produced. Defaults to /out.
+  RECORDINGS_DIR: z.string().default('/out'),
 });
 
 export type Env = z.infer<typeof envSchema>;

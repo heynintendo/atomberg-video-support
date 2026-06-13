@@ -1,12 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AuthUser, JoinTokenResponse, SessionDetail, SessionSummary } from '@atomquest/shared';
-import { createSession, listSessions, getAgentToken, endSession, getSessionDetail, logout } from '../lib/api';
+import type { AuthUser, JoinTokenResponse, RecordingDTO, SessionDetail, SessionSummary } from '@atomquest/shared';
+import {
+  createSession,
+  listSessions,
+  getAgentToken,
+  endSession,
+  getSessionDetail,
+  listRecordings,
+  recordingFileUrl,
+  logout,
+} from '../lib/api';
 import { Header } from './Header';
 
 function fmtDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function fmtSize(bytes: number | null): string {
+  if (!bytes) return '—';
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function recStatusLabel(status: RecordingDTO['status']): string {
+  return status === 'ready'
+    ? 'ready'
+    : status === 'failed'
+      ? 'failed'
+      : status === 'processing'
+        ? 'finalizing'
+        : 'recording';
 }
 
 interface Props {
@@ -23,6 +48,7 @@ export function AgentConsole({ agent, onJoin, onLogout, onHome }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
+  const [recs, setRecs] = useState<{ sessionId: string; items: RecordingDTO[] } | null>(null);
 
   const refresh = useCallback(() => {
     listSessions()
@@ -78,6 +104,19 @@ export function AgentConsole({ agent, onJoin, onLogout, onHome }: Props) {
       setDetail(await getSessionDetail(sessionId));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'could not load history');
+    }
+  };
+
+  const viewRecordings = async (sessionId: string) => {
+    if (recs?.sessionId === sessionId) {
+      setRecs(null);
+      return;
+    }
+    try {
+      const r = await listRecordings(sessionId);
+      setRecs({ sessionId, items: r.recordings });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'could not load recordings');
     }
   };
 
@@ -149,6 +188,9 @@ export function AgentConsole({ agent, onJoin, onLogout, onHome }: Props) {
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => void viewHistory(s.id)}>
                     {detail?.session.id === s.id ? 'Hide' : 'History'}
                   </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => void viewRecordings(s.id)}>
+                    {recs?.sessionId === s.id ? 'Hide rec' : 'Recordings'}
+                  </button>
                   {s.status === 'active' && (
                     <>
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => void join(s.id)}>Join</button>
@@ -156,6 +198,48 @@ export function AgentConsole({ agent, onJoin, onLogout, onHome }: Props) {
                     </>
                   )}
                 </div>
+
+                {recs?.sessionId === s.id && (
+                  <div style={{ borderTop: '1px solid var(--line)', padding: '0.6rem 1rem 0.9rem' }}>
+                    {recs.items.length === 0 ? (
+                      <p className="muted" style={{ margin: '0.6rem 0' }}>No recordings for this session.</p>
+                    ) : (
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: '0.9rem' }}>
+                        {recs.items.map((r) => (
+                          <li key={r.id} className="aq-rec-item">
+                            <div className="aq-rec-row">
+                              <span className={`pill ${r.status === 'ready' ? 'pill-live' : 'pill-ended'}`}>
+                                {r.status === 'ready' && <span className="dot" />}
+                                {recStatusLabel(r.status)}
+                              </span>
+                              <span className="muted" style={{ fontSize: 12 }}>
+                                {new Date(r.createdAt).toLocaleString()}
+                                {r.durationSeconds != null && ` · ${fmtDuration(r.durationSeconds)}`}
+                                {r.sizeBytes != null && ` · ${fmtSize(r.sizeBytes)}`}
+                              </span>
+                            </div>
+                            {r.status === 'ready' && (
+                              <>
+                                <video className="aq-rec-video" controls preload="metadata" src={recordingFileUrl(r.id)} />
+                                <a className="btn btn-ghost btn-sm" href={recordingFileUrl(r.id)} download>
+                                  Download MP4
+                                </a>
+                              </>
+                            )}
+                            {r.status === 'failed' && (
+                              <p className="error-text" style={{ margin: 0, fontSize: 12 }}>{r.error ?? 'Recording failed.'}</p>
+                            )}
+                            {(r.status === 'in_progress' || r.status === 'processing') && (
+                              <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+                                {r.status === 'processing' ? 'Finalizing recording…' : 'Recording in progress…'}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
                 {detail?.session.id === s.id && (
                   <div style={{ borderTop: '1px solid var(--line)', padding: '0.5rem 1rem 0.9rem' }}>
                     {detail.participants.length === 0 ? (

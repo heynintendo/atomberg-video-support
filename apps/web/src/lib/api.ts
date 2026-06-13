@@ -4,6 +4,8 @@ import type {
   AuthUser,
   CreateSessionResponse,
   JoinTokenResponse,
+  RecordingsListResponse,
+  RecordingStartResponse,
   RoomParticipantsView,
   SessionDetail,
   SessionSummary,
@@ -84,4 +86,23 @@ export function fetchRoomParticipants(room: string): Promise<RoomParticipantsVie
 // Session history: participants with join/leave/duration.
 export function getSessionDetail(sessionId: string): Promise<SessionDetail> {
   return request<SessionDetail>(`/api/sessions/${sessionId}`);
+}
+
+// --- recordings (agent-only) ---
+export function startRecording(sessionId: string): Promise<RecordingStartResponse> {
+  return request<RecordingStartResponse>(`/api/sessions/${sessionId}/recording/start`, { method: 'POST' });
+}
+
+export function stopRecording(sessionId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/sessions/${sessionId}/recording/stop`, { method: 'POST' });
+}
+
+export function listRecordings(sessionId: string): Promise<RecordingsListResponse> {
+  return request<RecordingsListResponse>(`/api/sessions/${sessionId}/recordings`);
+}
+
+// Same-origin stream URL; the agent cookie is sent automatically by the browser
+// (for <video>/<a> on the same origin) and enforced server-side.
+export function recordingFileUrl(id: string): string {
+  return `${API_URL}/api/recordings/${id}/file`;
 }

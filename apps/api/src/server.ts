@@ -11,6 +11,7 @@ import { registerJoinRoutes } from './routes/join';
 import { registerRoomRoutes } from './routes/rooms';
 import { registerWebhookRoutes } from './routes/webhooks';
 import { registerChatRoutes } from './routes/chat';
+import { registerRecordingRoutes } from './routes/recordings';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -44,6 +45,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await registerJoinRoutes(app);
   await registerRoomRoutes(app);
   await registerChatRoutes(app);
+  await registerRecordingRoutes(app);
 
   return app;
 }

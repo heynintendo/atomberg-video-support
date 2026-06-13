@@ -139,15 +139,22 @@ model FileAttachment {
 }
 
 model Recording {
-  id        String          @id @default(cuid())
-  sessionId String
-  session   Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  egressId  String?         @unique
-  status    RecordingStatus @default(in_progress)
-  fileUrl   String?
-  startedAt DateTime?
-  endedAt   DateTime?
-  createdAt DateTime        @default(now())
+  id              String          @id @default(cuid())
+  sessionId       String
+  session         Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  egressId        String?         @unique
+  status          RecordingStatus @default(in_progress)
+  fileUrl         String?
+  // Basename of the composited MP4 on the shared egress-output volume; the API
+  // resolves it against RECORDINGS_DIR to stream the file. The authoritative
+  // value is written by the egress_ended webhook.
+  fileName        String?
+  durationSeconds Int?
+  sizeBytes       BigInt?
+  error           String?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime        @default(now())
 
   @@index([sessionId])
   @@map("recordings")

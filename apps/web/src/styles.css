@@ -402,6 +402,24 @@ a { color: inherit; }
 .aq-lost .muted { color: #b6b6bd; }
 .aq-lost-actions { display: grid; gap: 0.6rem; margin-top: 0.4rem; }
 
+/* Recording: consent indicators (in-call) + console playback (Phase 8) */
+.aq-chip.rec { background: rgba(229,57,53,0.18); color: #ff6b6b; }
+.aq-rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #e53935; display: inline-block; animation: aq-rec-pulse 1.4s ease-in-out infinite; }
+@keyframes aq-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.aq-rec-banner {
+  display: flex; align-items: center; gap: 0.5rem; justify-content: center;
+  background: rgba(229,57,53,0.14); color: #ffb4b4; font-size: 0.82rem; font-weight: 500;
+  padding: 0.4rem 1rem; margin: 0 0.8rem; border-radius: var(--radius-pill);
+}
+.aq-rec-error {
+  text-align: center; color: #ffb4b4; font-size: 0.8rem; margin: 0.3rem 0.8rem 0;
+}
+.aq-ctrl.rec-on { background: rgba(229,57,53,0.85); color: #fff; border-color: transparent; }
+
+.aq-rec-item { display: grid; gap: 0.5rem; }
+.aq-rec-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.aq-rec-video { width: 100%; max-width: 480px; border-radius: 12px; background: #000; display: block; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }

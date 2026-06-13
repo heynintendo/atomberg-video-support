@@ -105,6 +105,12 @@ services:
         ws_url: ws://livekit:7880
         insecure: true
         log_level: info
+        # Room composite defaults to a 4-CPU admission cost; this node is hard-
+        # capped at 3 vCPU (the cap that protects the live call). A 720p two-tile
+        # composite fits well inside 3 vCPU, so lower the admission cost to let the
+        # job run. The Docker cpu limit still bounds actual usage at 3 vCPU.
+        cpu_cost:
+          room_composite_cpu_cost: 2.5
     volumes:
       - egress_output:/out
     shm_size: "1gb"
@@ -139,6 +145,11 @@ services:
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
       ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      RECORDINGS_DIR: /out
+    # Read-only view of the same volume the egress service writes recordings to,
+    # so the API can stream completed MP4s. The egress mount stays read-write.
+    volumes:
+      - egress_output:/out:ro
     healthcheck:
       test:
         - CMD

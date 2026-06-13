@@ -1,8 +1,14 @@
-import { AccessToken, RoomServiceClient, WebhookReceiver, type VideoGrant } from 'livekit-server-sdk';
+import {
+  AccessToken,
+  EgressClient,
+  RoomServiceClient,
+  WebhookReceiver,
+  type VideoGrant,
+} from 'livekit-server-sdk';
 import type { ParticipantRole } from '@atomquest/shared';
 import { env } from '../env';
 
-// Verifies signed LiveKit webhooks (participant/room lifecycle events).
+// Verifies signed LiveKit webhooks (participant/room/egress lifecycle events).
 export const webhookReceiver = new WebhookReceiver(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
 
 function toHttpUrl(wsUrl: string): string {
@@ -15,6 +21,25 @@ export const roomService = new RoomServiceClient(
   env.LIVEKIT_API_KEY,
   env.LIVEKIT_API_SECRET,
 );
+
+// Egress is dispatched through the LiveKit server (which hands jobs to the
+// already-deployed, CPU-capped egress service over Redis).
+export const egressClient = new EgressClient(
+  toHttpUrl(env.LIVEKIT_URL),
+  env.LIVEKIT_API_KEY,
+  env.LIVEKIT_API_SECRET,
+);
+
+// Room-wide recording flag, surfaced to both participants for the consent banner.
+// Best-effort: if the room is already gone (e.g. session just ended) this is a
+// no-op, which is correct — there is nobody left to inform.
+export async function setRecordingFlag(roomName: string, recording: boolean): Promise<void> {
+  try {
+    await roomService.updateRoomMetadata(roomName, JSON.stringify({ recording }));
+  } catch {
+    // room gone or unreachable; nothing to signal
+  }
+}
 
 export interface JoinTokenParams {
   room: string;

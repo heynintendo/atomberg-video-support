@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -7,6 +7,7 @@ import {
   useConnectionState,
   useLocalParticipant,
   useParticipants,
+  useRoomInfo,
   useTracks,
 } from '@livekit/components-react';
 import type { TrackReference, TrackReferenceOrPlaceholder } from '@livekit/components-react';
@@ -14,7 +15,7 @@ import { ConnectionQuality, ConnectionState, DisconnectReason, Track } from 'liv
 import type { Participant } from 'livekit-client';
 import '@livekit/components-styles';
 import type { JoinTokenResponse } from '@atomquest/shared';
-import { endSession } from '../lib/api';
+import { endSession, startRecording, stopRecording } from '../lib/api';
 import { useMediaPreflight } from '../hooks/useMediaPreflight';
 import { useChat } from '../hooks/useChat';
 import { MediaError } from './MediaError';
@@ -69,6 +70,20 @@ const CamOn = () => (<svg {...ICON}><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y=
 const CamOff = () => (<svg {...ICON}><path d="M16 16H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2m4 0h6a2 2 0 0 1 2 2v3M2 2l20 20M23 7l-7 5" /></svg>);
 const Phone = () => (<svg {...ICON}><path d="M21 16.5v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 1 3.2 2 2 0 0 1 3 1h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L7 8.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6A2 2 0 0 1 21 16.5z" /></svg>);
 const ChatIcon = () => (<svg {...ICON}><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 20.5l1.5-4.2A8.4 8.4 0 0 1 3.5 11.5a8.4 8.4 0 0 1 9-8.4 8.4 8.4 0 0 1 8.5 8.4z" /></svg>);
+const RecIcon = ({ active }: { active: boolean }) => (
+  <svg {...ICON}><circle cx="12" cy="12" r={active ? 6 : 8} fill={active ? 'currentColor' : 'none'} /></svg>
+);
+
+// The room's recording flag is set server-side (RoomService metadata) when egress
+// starts/stops, so BOTH participants observe the same consent state.
+function parseRecording(metadata: string | undefined): boolean {
+  if (!metadata) return false;
+  try {
+    return (JSON.parse(metadata) as { recording?: unknown }).recording === true;
+  } catch {
+    return false;
+  }
+}
 
 export function CallRoom({ connection, isAgent = false, onLeave, onRejoin }: Props) {
   const pre = useMediaPreflight();
@@ -240,10 +255,14 @@ function CallStage({
   const connState = useConnectionState();
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
   const participants = useParticipants();
+  const roomInfo = useRoomInfo();
   const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: false });
   const [minElapsed, setMinElapsed] = useState(false);
   const [ending, setEnding] = useState(false);
   const [everConnected, setEverConnected] = useState(false);
+  const recording = useMemo(() => parseRecording(roomInfo.metadata), [roomInfo.metadata]);
+  const [recBusy, setRecBusy] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
   const chat = useChat(connection.sessionId);
   const [chatOpen, setChatOpen] = useState(false);
   const [seen, setSeen] = useState(0);
@@ -296,6 +315,22 @@ function CallStage({
     onLeave();
   };
 
+  // Server-side recording start/stop. The button reflects the room recording flag
+  // (single source of truth), which flips for both participants on success.
+  const toggleRecording = async () => {
+    if (!connection.sessionId) return;
+    setRecBusy(true);
+    setRecError(null);
+    try {
+      if (recording) await stopRecording(connection.sessionId);
+      else await startRecording(connection.sessionId);
+    } catch {
+      setRecError(recording ? 'Could not stop the recording.' : 'Could not start recording.');
+    } finally {
+      setRecBusy(false);
+    }
+  };
+
   return (
     <div className="aq-call">
       {initialConnecting && <LogoAssembly caption="Connecting you to your expert…" />}
@@ -306,6 +341,12 @@ function CallStage({
           atomberg
         </span>
         <div className="aq-call-meta">
+          {recording && (
+            <span className="aq-chip rec" role="status">
+              <span className="aq-rec-dot" />
+              Recording
+            </span>
+          )}
           {reconnecting && (
             <span className="aq-chip reconnecting" role="status">
               <span className="aq-spinner" />
@@ -316,6 +357,18 @@ function CallStage({
           <span className="aq-chip">{participants.length} in call</span>
         </div>
       </div>
+
+      {recording && (
+        <div className="aq-rec-banner" role="status">
+          <span className="aq-rec-dot" />
+          This call is being recorded
+        </div>
+      )}
+      {recError && (
+        <div className="aq-rec-error" role="alert">
+          {recError}
+        </div>
+      )}
 
       <div className="aq-stage">
         <div className="aq-focus">
@@ -369,6 +422,21 @@ function CallStage({
           </button>
           <span className="aq-ctrl-label">{isCameraEnabled ? 'Stop video' : 'Start video'}</span>
         </div>
+
+        {isAgent && connection.sessionId && (
+          <div style={{ textAlign: 'center' }}>
+            <button
+              type="button"
+              className={`aq-ctrl ${recording ? 'rec-on' : ''}`}
+              onClick={() => void toggleRecording()}
+              disabled={recBusy}
+              aria-label={recording ? 'Stop recording' : 'Start recording'}
+            >
+              <RecIcon active={recording} />
+            </button>
+            <span className="aq-ctrl-label">{recBusy ? '…' : recording ? 'Stop' : 'Record'}</span>
+          </div>
+        )}
 
         {connection.sessionId && (
           <div style={{ textAlign: 'center' }}>

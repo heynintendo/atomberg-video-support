@@ -18,6 +18,10 @@ const envSchema = z.object({
   LIVEKIT_API_KEY: z.string().min(1, 'LIVEKIT_API_KEY is required'),
   LIVEKIT_API_SECRET: z.string().min(1, 'LIVEKIT_API_SECRET is required'),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
+  // Signs agent session cookies and customer invite tokens. Required (no default).
+  AUTH_JWT_SECRET: z.string().min(16, 'AUTH_JWT_SECRET must be at least 16 chars'),
+  // Optional JSON array of one-click demo agents: [{"email","name"}].
+  SEED_AGENTS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

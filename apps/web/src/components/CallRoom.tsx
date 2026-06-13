@@ -15,6 +15,7 @@ import { ServerStatsPanel } from './ServerStatsPanel';
 
 interface Props {
   connection: JoinTokenResponse;
+  isAgent?: boolean;
   onLeave: () => void;
 }
 
@@ -26,7 +27,7 @@ function isRelayForced(): boolean {
   return value === '1' || value === 'true';
 }
 
-export function CallRoom({ connection, onLeave }: Props) {
+export function CallRoom({ connection, isAgent = false, onLeave }: Props) {
   const forceRelay = isRelayForced();
   return (
     <LiveKitRoom
@@ -55,7 +56,7 @@ export function CallRoom({ connection, onLeave }: Props) {
           Relay-only mode: media is forced through the server TURN/TLS path (5349).
         </div>
       )}
-      <CallStage room={connection.room} identity={connection.identity} onLeave={onLeave} />
+      <CallStage room={connection.room} identity={connection.identity} isAgent={isAgent} onLeave={onLeave} />
       {/* Plays every subscribed remote audio track. */}
       <RoomAudioRenderer />
     </LiveKitRoom>
@@ -65,10 +66,12 @@ export function CallRoom({ connection, onLeave }: Props) {
 function CallStage({
   room,
   identity,
+  isAgent,
   onLeave,
 }: {
   room: string;
   identity: string;
+  isAgent: boolean;
   onLeave: () => void;
 }) {
   const state = useConnectionState();
@@ -76,7 +79,8 @@ function CallStage({
   // Camera tracks for every participant (local included) so each tab sees itself
   // and everyone else. Media for remote tiles is delivered by the SFU.
   const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: false });
-  const [showStats, setShowStats] = useState(true);
+  // Server-stats view is an agent-only tool (the endpoint is agent-only).
+  const [showStats, setShowStats] = useState(isAgent);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#18181b' }}>
@@ -97,9 +101,11 @@ function CallStage({
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <span style={{ opacity: 0.8 }}>{participants.length} in room</span>
-          <button onClick={() => setShowStats((s) => !s)}>
-            {showStats ? 'Hide' : 'Show'} server stats
-          </button>
+          {isAgent && (
+            <button onClick={() => setShowStats((s) => !s)}>
+              {showStats ? 'Hide' : 'Show'} server stats
+            </button>
+          )}
           <button onClick={onLeave}>Leave</button>
         </div>
       </header>
@@ -116,7 +122,7 @@ function CallStage({
         )}
       </main>
 
-      {showStats && <ServerStatsPanel room={room} />}
+      {isAgent && showStats && <ServerStatsPanel room={room} />}
     </div>
   );
 }

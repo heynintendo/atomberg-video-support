@@ -5,5 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Proxy the API in dev so the browser sees a single origin and the auth
+    // cookie works (same as production, where Caddy serves both on one host).
+    proxy: {
+      '/api': { target: 'http://localhost:8080', changeOrigin: true },
+    },
   },
 });

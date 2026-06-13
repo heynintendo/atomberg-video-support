@@ -1,32 +1,81 @@
 import type {
+  AgentsListResponse,
+  AuthMeResponse,
+  AuthUser,
+  CreateSessionResponse,
   JoinTokenResponse,
-  ParticipantRole,
   RoomParticipantsView,
+  SessionSummary,
 } from '@atomquest/shared';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+// Empty in both dev (Vite proxy) and prod (Caddy) so requests are same-origin
+// and the session cookie is sent automatically.
+const API_URL = import.meta.env.VITE_API_URL ?? '';
 
-export async function fetchJoinToken(input: {
-  room: string;
-  identity: string;
-  name?: string;
-  role?: ParticipantRole;
-}): Promise<JoinTokenResponse> {
-  const res = await fetch(`${API_URL}/api/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    credentials: 'include',
+    headers: init?.body ? { 'content-type': 'application/json' } : undefined,
+    ...init,
   });
   if (!res.ok) {
-    throw new Error(`token request failed (${res.status})`);
+    let detail = '';
+    try {
+      detail = (await res.json())?.error ?? '';
+    } catch {
+      // ignore
+    }
+    throw new Error(detail || `request failed (${res.status})`);
   }
-  return res.json() as Promise<JoinTokenResponse>;
+  return res.json() as Promise<T>;
 }
 
-export async function fetchRoomParticipants(room: string): Promise<RoomParticipantsView> {
-  const res = await fetch(`${API_URL}/api/rooms/${encodeURIComponent(room)}/participants`);
-  if (!res.ok) {
-    throw new Error(`participants request failed (${res.status})`);
-  }
-  return res.json() as Promise<RoomParticipantsView>;
+export function fetchAgents(): Promise<AgentsListResponse> {
+  return request<AgentsListResponse>('/api/auth/agents');
+}
+
+export function demoLogin(email: string): Promise<{ user: AuthUser }> {
+  return request<{ user: AuthUser }>('/api/auth/demo-login', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function logout(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' });
+}
+
+export function fetchMe(): Promise<AuthMeResponse> {
+  return request<AuthMeResponse>('/api/auth/me');
+}
+
+export function createSession(customerName?: string): Promise<CreateSessionResponse> {
+  return request<CreateSessionResponse>('/api/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ customerName }),
+  });
+}
+
+export function listSessions(): Promise<{ sessions: SessionSummary[] }> {
+  return request<{ sessions: SessionSummary[] }>('/api/sessions');
+}
+
+export function getAgentToken(sessionId: string): Promise<JoinTokenResponse> {
+  return request<JoinTokenResponse>(`/api/sessions/${sessionId}/token`, { method: 'POST' });
+}
+
+export function endSession(sessionId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/sessions/${sessionId}/end`, { method: 'POST' });
+}
+
+export function joinWithInvite(invite: string): Promise<JoinTokenResponse> {
+  return request<JoinTokenResponse>('/api/join', {
+    method: 'POST',
+    body: JSON.stringify({ invite }),
+  });
+}
+
+// Agent-only server view (used by the in-call stats panel).
+export function fetchRoomParticipants(room: string): Promise<RoomParticipantsView> {
+  return request<RoomParticipantsView>(`/api/rooms/${encodeURIComponent(room)}/participants`);
 }

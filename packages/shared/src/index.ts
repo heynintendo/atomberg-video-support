@@ -4,3 +4,4 @@ export * from './presence';
 export * from './chat';
 export * from './api';
 export * from './proof';
+export * from './auth';

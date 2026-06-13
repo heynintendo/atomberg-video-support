@@ -130,6 +130,8 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       WEB_ORIGIN: ${WEB_ORIGIN}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      SEED_AGENTS: ${SEED_AGENTS:-}
     healthcheck:
       test:
         - CMD

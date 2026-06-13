@@ -5,6 +5,7 @@ import type {
   ServerTrackInfo,
 } from '@atomquest/shared';
 import { roomService } from '../lib/livekit';
+import { requireAgent } from '../auth/middleware';
 
 // LiveKit protocol enums arrive as numbers; map them to readable labels.
 const TRACK_TYPE: Record<number, string> = { 0: 'audio', 1: 'video', 2: 'data' };
@@ -28,6 +29,7 @@ export async function registerRoomRoutes(app: FastifyInstance): Promise<void> {
   // account of the room, not anything the browser reports.
   app.get<{ Params: { room: string } }>(
     '/api/rooms/:room/participants',
+    { preHandler: requireAgent },
     async (request, reply) => {
       const { room } = request.params;
       try {

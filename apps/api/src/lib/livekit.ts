@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, type VideoGrant } from 'livekit-server-sdk';
 import type { ParticipantRole } from '@atomquest/shared';
 import { env } from '../env';
 
@@ -26,20 +26,44 @@ export async function createJoinToken(params: JoinTokenParams): Promise<string> 
   const at = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, {
     identity,
     name,
-    ttl: '1h',
-    // Role travels as server-trusted participant metadata; grants are scoped by
-    // role in Phase 3 (agents create/end/record, customers join-only).
+    ttl: '2h',
     metadata: JSON.stringify({ role }),
   });
 
-  // Phase 1: both roles publish and subscribe so two tabs see and hear each other.
-  at.addGrant({
+  // Both roles publish and subscribe (it's a two-way call). Only agents get the
+  // privileged grants: room admin (manage participants), create, and record.
+  const grant: VideoGrant = {
     room,
     roomJoin: true,
     canPublish: true,
     canSubscribe: true,
     canPublishData: true,
-  });
+  };
+  if (role === 'agent') {
+    grant.roomAdmin = true;
+    grant.roomCreate = true;
+    grant.roomRecord = true;
+  }
+  at.addGrant(grant);
 
   return at.toJwt();
+}
+
+/** Create the room up front (idempotent) so it exists with our settings. */
+export async function ensureRoom(name: string): Promise<void> {
+  try {
+    // Keep the room alive briefly when empty so a short drop does not end it.
+    await roomService.createRoom({ name, emptyTimeout: 600 });
+  } catch {
+    // Room may already exist; that is fine.
+  }
+}
+
+/** Terminate a room for all participants (agent "End session"). */
+export async function deleteRoom(name: string): Promise<void> {
+  try {
+    await roomService.deleteRoom(name);
+  } catch {
+    // Room may already be gone.
+  }
 }

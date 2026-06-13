@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/build
+**/.vite
+.git
+.github
+
+# Never copy secrets into an image; env is injected at runtime.
+**/.env
+**/.env.*
+!**/.env.example
+
+recordings
+out
+*.log
+.DS_Store

@@ -1,0 +1,31 @@
+{
+  "name": "atomquest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck -w @atomquest/shared && npm run typecheck -w @atomquest/api && npm run typecheck -w @atomquest/web",
+    "lint": "eslint .",
+    "dev:api": "npm run dev -w @atomquest/api",
+    "dev:web": "npm run dev -w @atomquest/web",
+    "db:generate": "npm run db:generate -w @atomquest/api",
+    "db:migrate": "npm run db:migrate -w @atomquest/api",
+    "db:deploy": "npm run db:deploy -w @atomquest/api",
+    "compose:up": "docker compose -f infra/docker-compose.yml up -d",
+    "compose:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "globals": "^15.11.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.11.0"
+  }
+}

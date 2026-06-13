@@ -1,0 +1,19 @@
+# AtomQuest edge — Hetzner deployment.
+# Laid down in Phase 0, operated in Phase 2.
+#
+# Caddy owns 443 and terminates TLS for the API and the LiveKit signaling
+# endpoint, auto-provisioning certificates. WebSocket upgrades (LiveKit /rtc and
+# the backend chat WS) are proxied transparently.
+#
+# TURN-over-TLS listens on 5349 and is terminated by LiveKit's built-in TURN
+# (external_tls) using the same certificate material; it is NOT proxied by Caddy.
+# This split avoids a port collision on 443.
+
+{$LIVEKIT_DOMAIN} {
+	reverse_proxy livekit:7880
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:8080
+}

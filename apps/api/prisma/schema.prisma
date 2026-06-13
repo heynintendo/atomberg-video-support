@@ -1,0 +1,175 @@
+// AtomQuest persistence model.
+// Live state (who is in a room right now) is authoritative from LiveKit RoomService;
+// this database holds identity, history, the chat write-path, and the event log.
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" builds the host engine (local dev); the debian target is for the
+  // node:22-bookworm-slim API container.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionStatus {
+  active
+  ended
+}
+
+enum ParticipantRole {
+  agent
+  customer
+}
+
+enum MessageType {
+  text
+  file
+}
+
+enum RecordingStatus {
+  in_progress
+  processing
+  ready
+  failed
+}
+
+model Agent {
+  id           String    @id @default(cuid())
+  entraOid     String?   @unique
+  email        String    @unique
+  name         String
+  // Seeded fallback agents authenticate against a password hash provisioned from
+  // env at seed time (never committed). Entra-authenticated agents have null here.
+  passwordHash String?
+  isSeeded     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+
+  @@map("agents")
+}
+
+model Session {
+  id          String        @id @default(cuid())
+  roomName    String        @unique
+  status      SessionStatus @default(active)
+  createdById String
+  createdBy   Agent         @relation(fields: [createdById], references: [id])
+  startedAt   DateTime      @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime      @default(now())
+
+  invites      Invite[]
+  participants Participant[]
+  messages     ChatMessage[]
+  attachments  FileAttachment[]
+  recordings   Recording[]
+  auditEvents  AuditEvent[]
+
+  @@index([status])
+  @@map("sessions")
+}
+
+model Invite {
+  // Scoped to one session. Same-identity reconnect within the grace window is
+  // allowed; this is not a permanent public re-entry token.
+  id           String    @id @default(cuid())
+  token        String    @unique
+  sessionId    String
+  session      Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  customerName String?
+  expiresAt    DateTime
+  used         Boolean   @default(false)
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([sessionId])
+  @@map("invites")
+}
+
+model Participant {
+  // Append-only join/leave log, reconciled against RoomService so that no row
+  // keeps leftAt = null after the participant has actually gone.
+  id        String          @id @default(cuid())
+  sessionId String
+  session   Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  identity  String
+  role      ParticipantRole
+  joinedAt  DateTime        @default(now())
+  leftAt    DateTime?
+  createdAt DateTime        @default(now())
+
+  @@index([sessionId])
+  @@index([sessionId, leftAt])
+  @@map("participants")
+}
+
+model ChatMessage {
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderIdentity String
+  body           String
+  type           MessageType     @default(text)
+  createdAt      DateTime        @default(now())
+  attachment     FileAttachment?
+
+  @@index([sessionId, createdAt])
+  @@map("chat_messages")
+}
+
+model FileAttachment {
+  id          String      @id @default(cuid())
+  sessionId   String
+  session     Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  messageId   String      @unique
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  filename    String
+  mime        String
+  size        Int
+  storagePath String
+  createdAt   DateTime    @default(now())
+
+  @@index([sessionId])
+  @@map("file_attachments")
+}
+
+model Recording {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  egressId  String?         @unique
+  status    RecordingStatus @default(in_progress)
+  fileUrl   String?
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime        @default(now())
+
+  @@index([sessionId])
+  @@map("recordings")
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  sessionId String?
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  type      String
+  actor     String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([type])
+  @@map("audit_events")
+}
+
+model MetricCounter {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("metric_counters")
+}

@@ -1,0 +1,18 @@
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# Environment files (never commit real secrets)
+.env
+.env.*
+!.env.example
+
+# Local recordings / media output
+recordings/
+out/
+
+# Logs and OS noise
+*.log
+.DS_Store

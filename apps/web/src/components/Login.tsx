@@ -1,8 +1,20 @@
 import { useEffect, useState } from 'react';
 import type { AgentCard, AuthUser } from '@atomquest/shared';
 import { fetchAgents, demoLogin } from '../lib/api';
+import { Header } from './Header';
 
-export function Login({ onLoggedIn }: { onLoggedIn: (user: AuthUser) => void }) {
+function MicrosoftMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 23 23" aria-hidden="true">
+      <rect x="1" y="1" width="10" height="10" fill="#F25022" />
+      <rect x="12" y="1" width="10" height="10" fill="#7FBA00" />
+      <rect x="1" y="12" width="10" height="10" fill="#00A4EF" />
+      <rect x="12" y="12" width="10" height="10" fill="#FFB900" />
+    </svg>
+  );
+}
+
+export function Login({ onLoggedIn, onHome }: { onLoggedIn: (user: AuthUser) => void; onHome: () => void }) {
   const [agents, setAgents] = useState<AgentCard[]>([]);
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [busyEmail, setBusyEmail] = useState<string | null>(null);
@@ -52,118 +64,55 @@ export function Login({ onLoggedIn }: { onLoggedIn: (user: AuthUser) => void }) 
   };
 
   return (
-    <main style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>AtomQuest Support</h1>
-        <p style={styles.subtitle}>Agent sign-in</p>
-
-        <p style={styles.section}>Continue instantly as a demo agent</p>
-        <div style={{ display: 'grid', gap: '0.6rem' }}>
-          {agents.map((a) => (
-            <button
-              key={a.email}
-              onClick={() => void signIn(a.email)}
-              disabled={busyEmail !== null}
-              style={styles.agentCard}
-            >
-              <span style={styles.avatar}>{a.name.charAt(0)}</span>
-              <span style={{ textAlign: 'left', flex: 1 }}>
-                <span style={styles.agentName}>{a.name}</span>
-                <span style={styles.agentEmail}>{a.email}</span>
-              </span>
-              <span style={styles.demoBadge}>DEMO</span>
-              <span style={{ opacity: 0.6 }}>{busyEmail === a.email ? '…' : '→'}</span>
-            </button>
-          ))}
-          {agents.length === 0 && !error && <p style={{ opacity: 0.6 }}>Loading…</p>}
-        </div>
-
-        <div style={styles.divider}>
-          <span style={styles.dividerLine} />
-          <span style={styles.dividerText}>OR</span>
-          <span style={styles.dividerLine} />
-        </div>
-
-        <button onClick={microsoft} style={styles.msButton}>
-          <span style={{ fontWeight: 600 }}>Sign in with Microsoft</span>
-        </button>
-        <p style={styles.msNote}>
-          Microsoft sign-in is real Entra (Azure AD) OAuth{entraEnabled ? '.' : ' — being set up.'}
-        </p>
-        {ssoNote && (
-          <p style={{ ...styles.msNote, color: '#b45309' }}>
-            Entra SSO isn&apos;t wired yet. Use a demo agent above for now.
+    <div className="aq-app">
+      <Header onHome={onHome} />
+      <div className="aq-center">
+        <div className="card card-pad rise" style={{ width: '100%', maxWidth: 420 }}>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Agent sign-in</h2>
+          <p className="muted" style={{ margin: '0.3rem 0 1.3rem' }}>
+            Continue instantly as a demo agent — no password needed.
           </p>
-        )}
 
-        {error && <p style={{ color: 'crimson', marginTop: '1rem' }}>{error}</p>}
+          <div style={{ display: 'grid', gap: '0.6rem' }}>
+            {agents.map((a) => (
+              <button
+                key={a.email}
+                type="button"
+                className="aq-agent-card"
+                onClick={() => void signIn(a.email)}
+                disabled={busyEmail !== null}
+              >
+                <span className="aq-avatar">{a.name.charAt(0)}</span>
+                <span style={{ flex: 1, textAlign: 'left' }}>
+                  <strong style={{ display: 'block', fontFamily: 'var(--font-head)' }}>{a.name}</strong>
+                  <span className="muted" style={{ fontSize: 12 }}>{a.email}</span>
+                </span>
+                <span className="pill pill-demo">DEMO</span>
+                <span className="muted">{busyEmail === a.email ? '…' : '→'}</span>
+              </button>
+            ))}
+            {agents.length === 0 && !error && <p className="muted">Loading…</p>}
+          </div>
+
+          <div className="or-divider">
+            <span>OR</span>
+          </div>
+
+          <button type="button" className="btn btn-ghost btn-block" onClick={microsoft}>
+            <MicrosoftMark />
+            Sign in with Microsoft
+          </button>
+          <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: '0.6rem' }}>
+            Microsoft sign-in is real Entra (Azure AD) OAuth{entraEnabled ? '.' : ' — being set up.'}
+          </p>
+          {ssoNote && (
+            <p style={{ fontSize: 12, textAlign: 'center', color: '#8a5a00' }}>
+              Entra SSO isn&apos;t wired yet. Use a demo agent above for now.
+            </p>
+          )}
+          {error && <p className="error-text" style={{ marginTop: '1rem', textAlign: 'center' }}>{error}</p>}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: '100vh',
-    display: 'grid',
-    placeItems: 'center',
-    background: '#f4f4f5',
-    fontFamily: 'system-ui, sans-serif',
-    padding: '1rem',
-  },
-  card: {
-    width: '100%',
-    maxWidth: 420,
-    background: '#fff',
-    borderRadius: 16,
-    padding: '2rem',
-    boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
-  },
-  title: { margin: 0, fontSize: '1.5rem' },
-  subtitle: { margin: '0.25rem 0 1.5rem', color: '#71717a' },
-  section: { fontSize: 13, color: '#52525b', margin: '0 0 0.5rem', fontWeight: 600 },
-  agentCard: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    padding: '0.75rem 1rem',
-    border: '1px solid #e4e4e7',
-    borderRadius: 12,
-    background: '#fff',
-    cursor: 'pointer',
-    fontSize: 14,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: '50%',
-    background: '#6366f1',
-    color: '#fff',
-    display: 'grid',
-    placeItems: 'center',
-    fontWeight: 700,
-  },
-  agentName: { display: 'block', fontWeight: 600, color: '#18181b' },
-  agentEmail: { display: 'block', fontSize: 12, color: '#a1a1aa' },
-  demoBadge: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: '#3730a3',
-    background: '#e0e7ff',
-    borderRadius: 6,
-    padding: '2px 6px',
-    letterSpacing: '0.05em',
-  },
-  divider: { display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '1.5rem 0' },
-  dividerLine: { flex: 1, height: 1, background: '#e4e4e7' },
-  dividerText: { fontSize: 12, color: '#a1a1aa', fontWeight: 600 },
-  msButton: {
-    width: '100%',
-    padding: '0.75rem',
-    border: '1px solid #d4d4d8',
-    borderRadius: 12,
-    background: '#fff',
-    cursor: 'pointer',
-  },
-  msNote: { fontSize: 12, color: '#a1a1aa', marginTop: '0.5rem', textAlign: 'center' },
-};

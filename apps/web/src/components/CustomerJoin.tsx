@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import type { JoinTokenResponse } from '@atomquest/shared';
 import { joinWithInvite } from '../lib/api';
+import { Header } from './Header';
 
 interface Props {
   invite: string;
   onJoin: (connection: JoinTokenResponse) => void;
 }
 
+// Deep-link target: opening an invite URL lands here directly (bypassing the
+// landing/chooser), exactly as before.
 export function CustomerJoin({ invite, onJoin }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,39 +21,50 @@ export function CustomerJoin({ invite, onJoin }: Props) {
       onJoin(await joinWithInvite(invite));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'could not join the call');
-    } finally {
       setBusy(false);
     }
   };
 
   return (
-    <main style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>AtomQuest Support</h1>
-        <p style={styles.text}>You&apos;ve been invited to a live support call.</p>
-        <button onClick={() => void join()} disabled={busy} style={styles.joinBtn}>
-          {busy ? 'Joining…' : 'Join the call'}
-        </button>
-        <p style={styles.hint}>Your browser will ask for camera and microphone access.</p>
-        {error && (
-          <p style={{ color: 'crimson', marginTop: '1rem' }}>
-            {error === 'session_not_active'
-              ? 'This call has ended.'
-              : error === 'invite_expired' || error === 'invalid_or_expired_invite'
-                ? 'This invite link has expired or is invalid.'
-                : error}
+    <div className="aq-app">
+      <Header />
+      <div className="aq-center">
+        <div className="card card-pad rise" style={{ width: '100%', maxWidth: 400, textAlign: 'center' }}>
+          <div
+            className="aq-choice-icon"
+            style={{ background: 'var(--yellow-tint)', color: 'var(--yellow-strong)', margin: '0 auto 1rem' }}
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="6" width="13" height="12" rx="3" />
+              <path d="M15 10l6-3.5v11L15 14" />
+            </svg>
+          </div>
+          <h2 style={{ margin: 0, fontSize: '1.4rem' }}>You&apos;re invited to a support call</h2>
+          <p className="muted" style={{ margin: '0.5rem 0 1.4rem' }}>
+            An Atomberg expert is ready to help you, live on video.
           </p>
-        )}
+          <button
+            type="button"
+            className="btn btn-primary btn-block btn-lg"
+            onClick={() => void join()}
+            disabled={busy}
+          >
+            {busy ? 'Joining…' : 'Join the call'}
+          </button>
+          <p className="muted" style={{ fontSize: 12, marginTop: '0.8rem' }}>
+            Your browser will ask for camera and microphone access.
+          </p>
+          {error && (
+            <p className="error-text" style={{ marginTop: '1rem' }}>
+              {error === 'session_not_active'
+                ? 'This call has ended.'
+                : error.includes('expired') || error.includes('invalid')
+                  ? 'This invite link has expired or is invalid.'
+                  : error}
+            </p>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#f4f4f5', fontFamily: 'system-ui, sans-serif', padding: '1rem' },
-  card: { width: '100%', maxWidth: 380, background: '#fff', borderRadius: 16, padding: '2rem', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', textAlign: 'center' },
-  title: { margin: 0, fontSize: '1.4rem' },
-  text: { color: '#52525b', margin: '0.75rem 0 1.5rem' },
-  joinBtn: { width: '100%', padding: '0.85rem', border: 'none', borderRadius: 12, background: '#4f46e5', color: '#fff', fontWeight: 600, fontSize: '1rem', cursor: 'pointer' },
-  hint: { fontSize: 12, color: '#a1a1aa', marginTop: '0.75rem' },
-};

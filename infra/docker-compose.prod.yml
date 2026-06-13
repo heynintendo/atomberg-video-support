@@ -88,6 +88,16 @@ services:
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
 
+  # One-shot: make the shared recording volume writable by the egress user
+  # (the egress image runs as a non-root user, and a fresh named volume is owned
+  # by root). Runs to completion before egress starts, so a clean deploy records
+  # without any manual chmod on the volume.
+  egress-init:
+    image: busybox:1.37
+    command: ["sh", "-c", "chmod 0777 /out"]
+    volumes:
+      - egress_output:/out
+
   egress:
     image: livekit/egress:v1.13.0
     restart: unless-stopped
@@ -96,6 +106,8 @@ services:
         condition: service_healthy
       livekit:
         condition: service_started
+      egress-init:
+        condition: service_completed_successfully
     environment:
       EGRESS_CONFIG_BODY: |
         redis:

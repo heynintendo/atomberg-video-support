@@ -11,8 +11,12 @@
   },
   "dependencies": {
     "@atomquest/shared": "*",
+    "@livekit/components-react": "2.9.21",
+    "@livekit/components-styles": "1.2.0",
+    "livekit-client": "2.19.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tslib": "^2.6.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

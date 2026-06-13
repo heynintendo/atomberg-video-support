@@ -8,7 +8,13 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().positive().default(8080),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // Server-internal signaling/HTTP URL (RoomService, Egress). ws:// is converted
+  // to http:// for the RoomServiceClient.
   LIVEKIT_URL: z.string().min(1, 'LIVEKIT_URL is required'),
+  // Browser-facing signaling URL handed to clients in their join token response.
+  // Inside compose the API reaches LiveKit at ws://livekit:7880, but the browser
+  // must use the published address, so the two are configured separately.
+  LIVEKIT_PUBLIC_URL: z.string().min(1).default('ws://localhost:7880'),
   LIVEKIT_API_KEY: z.string().min(1, 'LIVEKIT_API_KEY is required'),
   LIVEKIT_API_SECRET: z.string().min(1, 'LIVEKIT_API_SECRET is required'),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),

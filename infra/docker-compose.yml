@@ -54,6 +54,7 @@ services:
     ports:
       - "7880:7880"                      # signaling (HTTP/WS)
       - "7881:7881"                      # RTC over TCP (fallback)
+      - "6789:6789"                      # Prometheus node metrics
       - "3478:3478/udp"                  # built-in TURN (UDP, local)
       - "50000-50019:50000-50019/udp"    # RTC media (small dev range)
     volumes:
@@ -98,6 +99,7 @@ services:
       API_PORT: ${API_PORT}
       DATABASE_URL: ${DATABASE_URL}
       LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       WEB_ORIGIN: ${WEB_ORIGIN}

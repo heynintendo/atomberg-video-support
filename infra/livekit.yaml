@@ -4,6 +4,10 @@
 
 port: 7880
 
+# Node-level metrics (bytes/packets forwarded, participant counts) used as
+# server-side evidence that media is relayed through the SFU.
+prometheus_port: 6789
+
 rtc:
   tcp_port: 7881
   # Small media port range for local development; matches the published range in

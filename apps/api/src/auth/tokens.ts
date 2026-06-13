@@ -36,3 +36,22 @@ export function verifyInvite(token: string): InviteClaims {
   const decoded = jwt.verify(token, env.AUTH_JWT_SECRET, { audience: INVITE_AUD });
   return decoded as unknown as InviteClaims;
 }
+
+// Short-lived state carried across the Entra OAuth redirect (CSRF state, OIDC
+// nonce, and the PKCE verifier), signed so the browser cannot tamper with it.
+const ENTRA_FLOW_AUD = 'atomquest:entra-flow';
+
+export interface EntraFlowClaims {
+  state: string;
+  nonce: string;
+  cv: string;
+}
+
+export function signEntraState(claims: EntraFlowClaims, ttlSeconds: number): string {
+  return jwt.sign(claims, env.AUTH_JWT_SECRET, { audience: ENTRA_FLOW_AUD, expiresIn: ttlSeconds });
+}
+
+export function verifyEntraState(token: string): EntraFlowClaims {
+  const decoded = jwt.verify(token, env.AUTH_JWT_SECRET, { audience: ENTRA_FLOW_AUD });
+  return decoded as unknown as EntraFlowClaims;
+}

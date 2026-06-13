@@ -6,7 +6,11 @@ export function Login({ onLoggedIn }: { onLoggedIn: (user: AuthUser) => void }) 
   const [agents, setAgents] = useState<AgentCard[]>([]);
   const [entraEnabled, setEntraEnabled] = useState(false);
   const [busyEmail, setBusyEmail] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    new URLSearchParams(window.location.search).get('sso_error')
+      ? 'Microsoft sign-in did not complete. Please try again or use a demo agent.'
+      : null,
+  );
   const [ssoNote, setSsoNote] = useState(false);
 
   useEffect(() => {

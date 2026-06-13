@@ -136,6 +136,9 @@ services:
       WEB_ORIGIN: ${WEB_ORIGIN}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       SEED_AGENTS: ${SEED_AGENTS:-}
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
     healthcheck:
       test:
         - CMD

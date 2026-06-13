@@ -22,6 +22,11 @@ const envSchema = z.object({
   AUTH_JWT_SECRET: z.string().min(16, 'AUTH_JWT_SECRET must be at least 16 chars'),
   // Optional JSON array of one-click demo agents: [{"email","name"}].
   SEED_AGENTS: z.string().optional(),
+  // Microsoft Entra SSO (additive). When client id + secret are present, the
+  // "Sign in with Microsoft" button goes live. Uses the /common authority.
+  ENTRA_TENANT_ID: z.string().optional(),
+  ENTRA_CLIENT_ID: z.string().optional(),
+  ENTRA_CLIENT_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

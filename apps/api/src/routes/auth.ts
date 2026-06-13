@@ -2,11 +2,23 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { AgentsListResponse, AuthMeResponse } from '@atomquest/shared';
 import { prisma } from '../db';
+import { env } from '../env';
 import { getSeedAgents } from '../auth/seed';
-import { signSession } from '../auth/tokens';
+import { signSession, signEntraState, verifyEntraState } from '../auth/tokens';
 import { readSession, setSessionCookie, clearSessionCookie } from '../auth/middleware';
+import {
+  entraEnabled,
+  buildAuthorizeUrl,
+  exchangeCode,
+  verifyIdToken,
+  pkce,
+  randomToken,
+  webBase,
+} from '../auth/entra';
 
 const AGENT_SESSION_TTL = 12 * 60 * 60; // 12 hours
+const ENTRA_FLOW_COOKIE = 'aq_entra_flow';
+const ENTRA_FLOW_TTL = 10 * 60; // 10 minutes
 
 const demoLoginSchema = z.object({ email: z.string().email() });
 
@@ -15,8 +27,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/auth/agents', async (): Promise<AgentsListResponse> => {
     return {
       agents: getSeedAgents().map((a) => ({ email: a.email, name: a.name })),
-      // Flipped to true once the Entra app is registered and configured.
-      entraEnabled: false,
+      entraEnabled: entraEnabled(),
     };
   });
 
@@ -58,10 +69,80 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  // Entra SSO placeholder. Wired once the Entra app is registered (tenant/client/
-  // secret + redirect URI). Until then it is explicit about not being configured.
+  // Begin Microsoft Entra sign-in (additive; the demo path is untouched).
   app.get('/api/auth/entra/login', async (_request, reply) => {
-    reply.code(501);
-    return { error: 'entra_not_configured', message: 'Microsoft sign-in is not configured yet.' };
+    if (!entraEnabled()) {
+      reply.code(501);
+      return { error: 'entra_not_configured' };
+    }
+    const state = randomToken();
+    const nonce = randomToken();
+    const { verifier, challenge } = pkce();
+    const flow = signEntraState({ state, nonce, cv: verifier }, ENTRA_FLOW_TTL);
+    reply.setCookie(ENTRA_FLOW_COOKIE, flow, {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: ENTRA_FLOW_TTL,
+    });
+    return reply.redirect(buildAuthorizeUrl(state, nonce, challenge));
   });
+
+  // OAuth callback: exchange the code, verify the ID token, provision/lookup the
+  // agent by entraOid, and issue the same agent session the demo login issues.
+  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
+    '/api/auth/entra/callback',
+    async (request, reply) => {
+      if (!entraEnabled()) {
+        reply.code(501);
+        return { error: 'entra_not_configured' };
+      }
+      const { code, state, error } = request.query;
+      if (error) {
+        return reply.redirect(`${webBase()}/?sso_error=${encodeURIComponent(error)}`);
+      }
+      const flowCookie = request.cookies[ENTRA_FLOW_COOKIE];
+      if (!code || !state || !flowCookie) {
+        reply.code(400);
+        return { error: 'invalid_callback' };
+      }
+      reply.clearCookie(ENTRA_FLOW_COOKIE, { path: '/' });
+
+      let flow;
+      try {
+        flow = verifyEntraState(flowCookie);
+      } catch {
+        reply.code(400);
+        return { error: 'invalid_flow' };
+      }
+      if (flow.state !== state) {
+        reply.code(400);
+        return { error: 'state_mismatch' };
+      }
+
+      let claims;
+      try {
+        const idToken = await exchangeCode(code, flow.cv);
+        claims = await verifyIdToken(idToken, flow.nonce);
+      } catch (err) {
+        app.log.error({ err }, 'entra callback failed');
+        return reply.redirect(`${webBase()}/?sso_error=auth_failed`);
+      }
+
+      const email = claims.email ?? `entra-${claims.oid}@thefoyers.club`;
+      const agent = await prisma.agent.upsert({
+        where: { entraOid: claims.oid },
+        create: { entraOid: claims.oid, email, name: claims.name ?? 'Agent', isSeeded: false },
+        update: { name: claims.name ?? undefined },
+      });
+
+      const token = signSession(
+        { sub: agent.id, role: 'agent', name: agent.name, email: agent.email },
+        AGENT_SESSION_TTL,
+      );
+      setSessionCookie(reply, token, AGENT_SESSION_TTL);
+      return reply.redirect(webBase());
+    },
+  );
 }

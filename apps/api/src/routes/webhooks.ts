@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../db';
 import { webhookReceiver } from '../lib/livekit';
 import { roleFromMetadata } from '../lib/participants';
+import { closeSession } from '../chat/hub';
 
 // LiveKit posts signed lifecycle events here. These populate the historical event
 // log and the participant join/leave timeline. The live view is never sourced
@@ -70,6 +71,7 @@ export async function registerWebhookRoutes(app: FastifyInstance): Promise<void>
           data: { status: 'ended', endedAt: at },
         });
       }
+      closeSession(session.id);
     }
 
     return { ok: true };

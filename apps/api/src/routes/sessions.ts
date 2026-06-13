@@ -18,6 +18,7 @@ import { requireAgent } from '../auth/middleware';
 import { signInvite } from '../auth/tokens';
 import { createJoinToken, ensureRoom, deleteRoom, roomService } from '../lib/livekit';
 import { reconcileSession } from '../lib/reconcile';
+import { closeSession } from '../chat/hub';
 
 const INVITE_TTL_SECONDS = 12 * 60 * 60; // 12 hours
 
@@ -214,6 +215,7 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
         where: { id: session.id },
         data: { status: 'ended', endedAt: at },
       });
+      closeSession(session.id); // live chat closes; history persists
       return { ok: true };
     },
   );

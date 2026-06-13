@@ -111,6 +111,8 @@ model ChatMessage {
   sessionId      String
   session        Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   senderIdentity String
+  senderName     String          @default("")
+  senderRole     ParticipantRole @default(customer)
   body           String
   type           MessageType     @default(text)
   createdAt      DateTime        @default(now())

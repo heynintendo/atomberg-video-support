@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -15,8 +15,10 @@ import '@livekit/components-styles';
 import type { JoinTokenResponse } from '@atomquest/shared';
 import { endSession } from '../lib/api';
 import { useMediaPreflight } from '../hooks/useMediaPreflight';
+import { useChat } from '../hooks/useChat';
 import { MediaError } from './MediaError';
 import { LogoAssembly } from './LogoAssembly';
+import { ChatPanel } from './ChatPanel';
 
 interface Props {
   connection: JoinTokenResponse;
@@ -48,6 +50,7 @@ const MicOff = () => (<svg {...ICON}><path d="M9 9v-4a3 3 0 0 1 6 0v4M5 11a7 7 0
 const CamOn = () => (<svg {...ICON}><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" /></svg>);
 const CamOff = () => (<svg {...ICON}><path d="M16 16H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2m4 0h6a2 2 0 0 1 2 2v3M2 2l20 20M23 7l-7 5" /></svg>);
 const Phone = () => (<svg {...ICON}><path d="M21 16.5v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 1 3.2 2 2 0 0 1 3 1h3a2 2 0 0 1 2 1.7c.1 1 .3 1.9.6 2.8a2 2 0 0 1-.5 2.1L7 8.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.8.6A2 2 0 0 1 21 16.5z" /></svg>);
+const ChatIcon = () => (<svg {...ICON}><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 20.5l1.5-4.2A8.4 8.4 0 0 1 3.5 11.5a8.4 8.4 0 0 1 9-8.4 8.4 8.4 0 0 1 8.5 8.4z" /></svg>);
 
 export function CallRoom({ connection, isAgent = false, onLeave }: Props) {
   const pre = useMediaPreflight();
@@ -106,13 +109,29 @@ function CallStage({
   const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: false });
   const [minElapsed, setMinElapsed] = useState(false);
   const [ending, setEnding] = useState(false);
+  const chat = useChat(connection.sessionId);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [seen, setSeen] = useState(0);
+  const baselined = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => setMinElapsed(true), 700);
     return () => clearTimeout(t);
   }, []);
 
+  // Treat history present on connect as already seen; only count new arrivals.
+  useEffect(() => {
+    if (!baselined.current && chat.messages.length > 0) {
+      baselined.current = true;
+      setSeen(chat.messages.length);
+    }
+  }, [chat.messages.length]);
+  useEffect(() => {
+    if (chatOpen) setSeen(chat.messages.length);
+  }, [chatOpen, chat.messages.length]);
+
   const connecting = connState !== ConnectionState.Connected || !minElapsed;
+  const unread = chatOpen ? 0 : Math.max(0, chat.messages.length - seen);
 
   const remote = participants.find((p) => !p.isLocal);
   const liveCam = cameraTracks.filter(hasTrack).filter((t) => !t.publication.isMuted);
@@ -207,6 +226,21 @@ function CallStage({
           <span className="aq-ctrl-label">{isCameraEnabled ? 'Stop video' : 'Start video'}</span>
         </div>
 
+        {connection.sessionId && (
+          <div style={{ textAlign: 'center' }}>
+            <button
+              type="button"
+              className="aq-ctrl aq-chat-toggle"
+              onClick={() => setChatOpen((o) => !o)}
+              aria-label="Toggle chat"
+            >
+              <ChatIcon />
+              {unread > 0 && <span className="aq-chat-badge">{unread > 9 ? '9+' : unread}</span>}
+            </button>
+            <span className="aq-ctrl-label">Chat</span>
+          </div>
+        )}
+
         <button type="button" className="aq-leave leave" onClick={onLeave}>
           <Phone />
           Leave
@@ -217,6 +251,18 @@ function CallStage({
           </button>
         )}
       </div>
+
+      {connection.sessionId && (
+        <ChatPanel
+          messages={chat.messages}
+          connected={chat.connected}
+          error={chat.error}
+          send={chat.send}
+          myIdentity={connection.identity}
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
     </div>
   );
 }

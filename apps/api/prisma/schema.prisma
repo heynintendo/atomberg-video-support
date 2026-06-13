@@ -131,7 +131,10 @@ model FileAttachment {
   filename    String
   mime        String
   size        Int
-  storagePath String
+  // Bytes stored in-DB (bytea) to avoid filesystem/volume permission concerns at
+  // this size. storagePath is retained (optional) but unused for DB-stored files.
+  data        Bytes
+  storagePath String?
   createdAt   DateTime    @default(now())
 
   @@index([sessionId])

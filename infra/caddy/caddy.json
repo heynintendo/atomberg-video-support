@@ -55,7 +55,19 @@
                       ]
                     },
                     {
-                      "handle": [{ "handler": "file_server", "root": "/srv/web" }]
+                      "handle": [
+                        { "handler": "vars", "root": "/srv/web" },
+                        {
+                          "handler": "subroute",
+                          "routes": [
+                            {
+                              "match": [{ "file": { "try_files": ["{http.request.uri.path}", "/index.html"] } }],
+                              "handle": [{ "handler": "rewrite", "uri": "{http.matchers.file.relative}" }]
+                            },
+                            { "handle": [{ "handler": "file_server" }] }
+                          ]
+                        }
+                      ]
                     }
                   ]
                 }

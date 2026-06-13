@@ -8,11 +8,13 @@ import { AgentConsole } from './components/AgentConsole';
 import { CustomerInviteEntry } from './components/CustomerInviteEntry';
 import { CustomerJoin } from './components/CustomerJoin';
 import { CallRoom } from './components/CallRoom';
+import { Admin } from './components/Admin';
 import { LogoAssembly } from './components/LogoAssembly';
 
 type View = 'landing' | 'chooser' | 'login' | 'console' | 'customer-entry' | 'customer-join';
 
 const inviteToken = new URLSearchParams(window.location.search).get('invite');
+const isAdminPath = window.location.pathname === '/admin';
 const BEAT_KEY = 'aq_beat_seen';
 
 export function App() {
@@ -55,6 +57,32 @@ export function App() {
       setConnection(await joinWithInvite(customerInvite ?? ''));
     }
   }, [connection, customerInvite]);
+
+  // The admin dashboard is its own path, gated to a logged-in agent.
+  if (isAdminPath) {
+    if (agent) {
+      return (
+        <Admin
+          agent={agent}
+          onHome={() => {
+            window.location.href = '/';
+          }}
+          onSignedOut={() => {
+            setAgent(null);
+            window.location.href = '/';
+          }}
+        />
+      );
+    }
+    return (
+      <Login
+        onLoggedIn={setAgent}
+        onHome={() => {
+          window.location.href = '/';
+        }}
+      />
+    );
+  }
 
   // A live call takes over the whole screen.
   if (connection) {

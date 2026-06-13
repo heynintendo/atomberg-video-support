@@ -471,6 +471,7 @@ function CallStage({
           error={chat.error}
           send={chat.send}
           myIdentity={connection.identity}
+          sessionId={connection.sessionId}
           open={chatOpen}
           onClose={() => setChatOpen(false)}
         />

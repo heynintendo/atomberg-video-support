@@ -6,6 +6,7 @@ import { prisma } from '../db';
 import { webhookReceiver, setRecordingFlag } from '../lib/livekit';
 import { roleFromMetadata } from '../lib/participants';
 import { markPresent, markAbsent, clearSessionPresence } from '../lib/presence';
+import { bump } from '../lib/metrics';
 import { closeSession } from '../chat/hub';
 
 // Egress events are authoritative for recording completion (not the stop call).
@@ -41,6 +42,7 @@ async function handleEgressEvent(eventName: string, info: EgressInfo): Promise<v
         },
       });
     } else {
+      bump('egress.failures');
       await prisma.recording.update({
         where: { id: rec.id },
         data: { status: 'failed', error: info.error || 'egress_failed', endedAt: new Date() },

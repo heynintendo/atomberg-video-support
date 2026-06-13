@@ -1,4 +1,7 @@
 import type {
+  AdminMetrics,
+  AdminRecordingsResponse,
+  AdminSessionsResponse,
   AgentsListResponse,
   AuthMeResponse,
   AuthUser,
@@ -105,4 +108,44 @@ export function listRecordings(sessionId: string): Promise<RecordingsListRespons
 // (for <video>/<a> on the same origin) and enforced server-side.
 export function recordingFileUrl(id: string): string {
   return `${API_URL}/api/recordings/${id}/file`;
+}
+
+// --- in-call file sharing ---
+// Raw octet-stream upload; the server never trusts the client MIME (it sniffs
+// the bytes). The filename travels as a query param.
+export async function uploadSessionFile(sessionId: string, file: File): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/api/sessions/${sessionId}/files?name=${encodeURIComponent(file.name)}`,
+    { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/octet-stream' }, body: file },
+  );
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = (await res.json())?.error ?? '';
+    } catch {
+      // ignore
+    }
+    throw new Error(detail || `upload_failed_${res.status}`);
+  }
+}
+
+export function fileDownloadUrl(sessionId: string, attachmentId: string): string {
+  return `${API_URL}/api/sessions/${sessionId}/files/${attachmentId}`;
+}
+
+// --- admin (agent-gated) ---
+export function fetchAdminMetrics(): Promise<AdminMetrics> {
+  return request<AdminMetrics>('/api/admin/metrics');
+}
+
+export function fetchAdminSessions(): Promise<AdminSessionsResponse> {
+  return request<AdminSessionsResponse>('/api/admin/sessions');
+}
+
+export function fetchAdminRecordings(): Promise<AdminRecordingsResponse> {
+  return request<AdminRecordingsResponse>('/api/admin/recordings');
+}
+
+export function adminEndSession(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/admin/sessions/${id}/end`, { method: 'POST' });
 }

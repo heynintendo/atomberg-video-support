@@ -3,6 +3,13 @@ import type { ParticipantRole } from './roles';
 export const MESSAGE_TYPES = ['text', 'file'] as const;
 export type MessageType = (typeof MESSAGE_TYPES)[number];
 
+export interface ChatAttachmentDTO {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
 export interface ChatMessageDTO {
   id: string;
   sessionId: string;
@@ -12,6 +19,8 @@ export interface ChatMessageDTO {
   body: string;
   type: MessageType;
   createdAt: string;
+  // Present only for `file` messages: metadata for the auth-gated download link.
+  attachment?: ChatAttachmentDTO | null;
 }
 
 /**

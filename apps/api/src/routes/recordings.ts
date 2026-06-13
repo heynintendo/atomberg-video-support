@@ -2,26 +2,14 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import type { Recording } from '@prisma/client';
 import { EncodedFileOutput, EncodedFileType, EncodingOptionsPreset } from 'livekit-server-sdk';
-import type { RecordingDTO, RecordingsListResponse, RecordingStartResponse } from '@atomquest/shared';
+import type { RecordingsListResponse, RecordingStartResponse } from '@atomquest/shared';
 import { prisma } from '../db';
 import { env } from '../env';
 import { requireAgent } from '../auth/middleware';
 import { egressClient, setRecordingFlag } from '../lib/livekit';
-
-function toDTO(r: Recording): RecordingDTO {
-  return {
-    id: r.id,
-    status: r.status,
-    durationSeconds: r.durationSeconds,
-    sizeBytes: r.sizeBytes === null ? null : Number(r.sizeBytes),
-    error: r.error,
-    startedAt: r.startedAt ? r.startedAt.toISOString() : null,
-    endedAt: r.endedAt ? r.endedAt.toISOString() : null,
-    createdAt: r.createdAt.toISOString(),
-  };
-}
+import { recordingToDTO as toDTO } from '../lib/recordingDto';
+import { bump } from '../lib/metrics';
 
 // Resolve a stored basename to an absolute path under RECORDINGS_DIR, refusing
 // anything with path components (defence-in-depth against traversal).
@@ -83,6 +71,7 @@ export async function registerRecordingRoutes(app: FastifyInstance): Promise<voi
         return body;
       } catch (err) {
         app.log.error({ err }, 'failed to start egress');
+        bump('egress.start_failures');
         // Record the failure so the agent sees a clear state; never crash the call.
         await prisma.recording
           .create({

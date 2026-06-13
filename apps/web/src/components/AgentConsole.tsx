@@ -141,6 +141,7 @@ export function AgentConsole({ agent, onJoin, onLogout, onHome }: Props) {
             <span className="muted">
               <span style={{ color: 'var(--ink)', fontWeight: 600, fontFamily: 'var(--font-head)' }}>{agent.name}</span>
             </span>
+            <a className="btn btn-ghost btn-sm" href="/admin">Admin</a>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => void doLogout()}>
               Sign out
             </button>

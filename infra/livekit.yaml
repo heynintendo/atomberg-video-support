@@ -26,6 +26,13 @@ turn:
   domain: localhost
   udp_port: 3478
 
+webhook:
+  api_key: devkey
+  # Local dev: the API runs on the host (tsx); the SFU reaches it via the Docker
+  # Desktop host alias. In production the SFU posts to the api service directly.
+  urls:
+    - http://host.docker.internal:8080/api/webhooks/livekit
+
 logging:
   level: info
   json: false

@@ -5,6 +5,7 @@ import type {
   CreateSessionResponse,
   JoinTokenResponse,
   RoomParticipantsView,
+  SessionDetail,
   SessionSummary,
 } from '@atomquest/shared';
 
@@ -78,4 +79,9 @@ export function joinWithInvite(invite: string): Promise<JoinTokenResponse> {
 // Agent-only server view (used by the in-call stats panel).
 export function fetchRoomParticipants(room: string): Promise<RoomParticipantsView> {
   return request<RoomParticipantsView>(`/api/rooms/${encodeURIComponent(room)}/participants`);
+}
+
+// Session history: participants with join/leave/duration.
+export function getSessionDetail(sessionId: string): Promise<SessionDetail> {
+  return request<SessionDetail>(`/api/sessions/${sessionId}`);
 }

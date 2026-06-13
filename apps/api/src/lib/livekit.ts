@@ -1,6 +1,9 @@
-import { AccessToken, RoomServiceClient, type VideoGrant } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, WebhookReceiver, type VideoGrant } from 'livekit-server-sdk';
 import type { ParticipantRole } from '@atomquest/shared';
 import { env } from '../env';
+
+// Verifies signed LiveKit webhooks (participant/room lifecycle events).
+export const webhookReceiver = new WebhookReceiver(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
 
 function toHttpUrl(wsUrl: string): string {
   return wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://');

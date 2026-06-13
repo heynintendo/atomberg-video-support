@@ -70,6 +70,7 @@ export async function registerJoinRoutes(app: FastifyInstance): Promise<void> {
         url: env.LIVEKIT_PUBLIC_URL,
         room: session.roomName,
         identity,
+        sessionId: session.id,
       };
       return response;
     },

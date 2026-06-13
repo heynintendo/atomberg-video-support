@@ -19,3 +19,17 @@ export interface CreateSessionResponse {
   /** Signed, single-session invite link the agent shares with the customer. */
   inviteUrl: string;
 }
+
+export interface ParticipantHistoryEntry {
+  identity: string;
+  role: import('./roles').ParticipantRole;
+  joinedAt: string;
+  leftAt: string | null;
+  /** Seconds in the room (to leftAt, or to now if still present). */
+  durationSeconds: number;
+}
+
+export interface SessionDetail {
+  session: SessionSummary;
+  participants: ParticipantHistoryEntry[];
+}

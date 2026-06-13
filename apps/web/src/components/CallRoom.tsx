@@ -12,6 +12,7 @@ import { Track } from 'livekit-client';
 import '@livekit/components-styles';
 import type { JoinTokenResponse } from '@atomquest/shared';
 import { ServerStatsPanel } from './ServerStatsPanel';
+import { endSession } from '../lib/api';
 
 interface Props {
   connection: JoinTokenResponse;
@@ -56,7 +57,13 @@ export function CallRoom({ connection, isAgent = false, onLeave }: Props) {
           Relay-only mode: media is forced through the server TURN/TLS path (5349).
         </div>
       )}
-      <CallStage room={connection.room} identity={connection.identity} isAgent={isAgent} onLeave={onLeave} />
+      <CallStage
+        room={connection.room}
+        identity={connection.identity}
+        isAgent={isAgent}
+        sessionId={connection.sessionId}
+        onLeave={onLeave}
+      />
       {/* Plays every subscribed remote audio track. */}
       <RoomAudioRenderer />
     </LiveKitRoom>
@@ -67,11 +74,13 @@ function CallStage({
   room,
   identity,
   isAgent,
+  sessionId,
   onLeave,
 }: {
   room: string;
   identity: string;
   isAgent: boolean;
+  sessionId?: string;
   onLeave: () => void;
 }) {
   const state = useConnectionState();
@@ -81,6 +90,19 @@ function CallStage({
   const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: false });
   // Server-stats view is an agent-only tool (the endpoint is agent-only).
   const [showStats, setShowStats] = useState(isAgent);
+  const [ending, setEnding] = useState(false);
+
+  // Agent "End session": terminate the room for everyone, then disconnect.
+  const endForAll = async () => {
+    if (!sessionId) return;
+    setEnding(true);
+    try {
+      await endSession(sessionId);
+    } catch {
+      // ignore — disconnect regardless
+    }
+    onLeave();
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#18181b' }}>
@@ -106,7 +128,19 @@ function CallStage({
               {showStats ? 'Hide' : 'Show'} server stats
             </button>
           )}
-          <button onClick={onLeave}>Leave</button>
+          <button onClick={onLeave} title="Close your own connection; the call continues for others">
+            Leave
+          </button>
+          {isAgent && sessionId && (
+            <button
+              onClick={() => void endForAll()}
+              disabled={ending}
+              title="Terminate the room for everyone and end the session"
+              style={{ background: '#b91c1c', color: '#fff', border: 'none', borderRadius: 6, padding: '0.3rem 0.7rem', cursor: 'pointer' }}
+            >
+              {ending ? 'Ending...' : 'End session'}
+            </button>
+          )}
         </div>
       </header>
 

@@ -1,13 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { CreateSessionResponse, JoinTokenResponse, SessionSummary } from '@atomquest/shared';
+import type {
+  CreateSessionResponse,
+  JoinTokenResponse,
+  ParticipantHistoryEntry,
+  ParticipantPresenceEntry,
+  PresenceState,
+  SessionDetail,
+  SessionPresenceView,
+  SessionSummary,
+} from '@atomquest/shared';
 import type { Session } from '@prisma/client';
 import { prisma } from '../db';
 import { env } from '../env';
 import { requireAgent } from '../auth/middleware';
 import { signInvite } from '../auth/tokens';
-import { createJoinToken, ensureRoom, deleteRoom } from '../lib/livekit';
+import { createJoinToken, ensureRoom, deleteRoom, roomService } from '../lib/livekit';
+import { reconcileSession } from '../lib/reconcile';
 
 const INVITE_TTL_SECONDS = 12 * 60 * 60; // 12 hours
 
@@ -94,8 +104,91 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
         url: env.LIVEKIT_PUBLIC_URL,
         room: session.roomName,
         identity,
+        sessionId: session.id,
       };
       return response;
+    },
+  );
+
+  // Session history: who joined, when, and for how long. Accurate even if a
+  // webhook was missed, because the reconciliation sweep keeps rows honest.
+  app.get<{ Params: { id: string } }>(
+    '/api/sessions/:id',
+    { preHandler: requireAgent },
+    async (request, reply) => {
+      const session = await prisma.session.findUnique({ where: { id: request.params.id } });
+      if (!session || session.createdById !== request.user!.sub) {
+        reply.code(404);
+        return { error: 'session_not_found' };
+      }
+      const rows = await prisma.participant.findMany({
+        where: { sessionId: session.id },
+        orderBy: { joinedAt: 'asc' },
+      });
+      const now = Date.now();
+      const participants: ParticipantHistoryEntry[] = rows.map((r) => {
+        const end = r.leftAt ? r.leftAt.getTime() : now;
+        return {
+          identity: r.identity,
+          role: r.role,
+          joinedAt: r.joinedAt.toISOString(),
+          leftAt: r.leftAt ? r.leftAt.toISOString() : null,
+          durationSeconds: Math.max(0, Math.round((end - r.joinedAt.getTime()) / 1000)),
+        };
+      });
+      const detail: SessionDetail = { session: toSummary(session), participants };
+      return detail;
+    },
+  );
+
+  // Live presence — RoomService is authoritative. Reconcile first so a missed
+  // webhook can't leave the DB stale, then report present/left per participant.
+  app.get<{ Params: { id: string } }>(
+    '/api/sessions/:id/presence',
+    { preHandler: requireAgent },
+    async (request, reply) => {
+      const session = await prisma.session.findUnique({ where: { id: request.params.id } });
+      if (!session || session.createdById !== request.user!.sub) {
+        reply.code(404);
+        return { error: 'session_not_found' };
+      }
+      await reconcileSession(session).catch(() => {});
+
+      let live: Awaited<ReturnType<typeof roomService.listParticipants>> = [];
+      try {
+        live = await roomService.listParticipants(session.roomName);
+      } catch {
+        // room gone; everyone is left
+      }
+      const liveIdentities = new Set(live.map((p) => p.identity));
+
+      const rows = await prisma.participant.findMany({
+        where: { sessionId: session.id },
+        orderBy: { joinedAt: 'asc' },
+      });
+      const participants: ParticipantPresenceEntry[] = rows.map((r) => {
+        const state: PresenceState = r.leftAt
+          ? 'left'
+          : liveIdentities.has(r.identity)
+            ? 'present'
+            : 'left';
+        return {
+          identity: r.identity,
+          role: r.role,
+          state,
+          joinedAt: r.joinedAt.toISOString(),
+          leftAt: r.leftAt ? r.leftAt.toISOString() : null,
+        };
+      });
+
+      const view: SessionPresenceView = {
+        sessionId: session.id,
+        roomName: session.roomName,
+        status: session.status,
+        liveCount: live.length,
+        participants,
+      };
+      return view;
     },
   );
 
@@ -110,10 +203,16 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
         reply.code(404);
         return { error: 'session_not_found' };
       }
+      const at = new Date();
       await deleteRoom(session.roomName);
+      // Close the session and everyone still open (room_finished webhook backstops this).
+      await prisma.participant.updateMany({
+        where: { sessionId: session.id, leftAt: null },
+        data: { leftAt: at },
+      });
       await prisma.session.update({
         where: { id: session.id },
-        data: { status: 'ended', endedAt: new Date() },
+        data: { status: 'ended', endedAt: at },
       });
       return { ok: true };
     },

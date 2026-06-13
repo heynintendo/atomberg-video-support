@@ -37,4 +37,6 @@ export interface JoinTokenResponse {
   url: string;
   room: string;
   identity: string;
+  /** Present so an agent in-call can end the session for everyone. */
+  sessionId?: string;
 }

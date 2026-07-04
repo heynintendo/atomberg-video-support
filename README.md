@@ -4,19 +4,8 @@
 
 ## Demo
 
-📹 Demo video below.
-
-<!--
-  PASTE THE GITHUB-HOSTED VIDEO URL HERE.
-
-  How to mint an inline player:
-  1. Open this README on github.com and click the pencil (Edit) button.
-  2. Drag the .mp4 into the editor and wait for the upload bar to reach 100%.
-  3. GitHub inserts a https://github.com/user-attachments/assets/... URL.
-  4. Delete this whole comment and leave that URL on its own line, then Commit.
-
-  GitHub renders a bare user-attachments URL as an inline video player.
--->
+ 
+https://github.com/user-attachments/assets/0e6422fa-767d-4370-bdfa-d2fbc2370064
 
 A browser based video support desk. A support agent and a customer hold a live audio and video call, with in call chat, file sharing, and call recording, right in the browser with nothing to install.
 
@@ -24,7 +13,6 @@ A browser based video support desk. A support agent and a customer hold a live a
 
 **Highlights:** fully self-hosted media path (our own SFU and TURN — no Twilio, Agora, Daily, or LiveKit Cloud anywhere in the path), media genuinely server routed through the SFU rather than peer to peer (with runtime proof), and a forced TURN relay over TLS so calls connect even on networks that block UDP.
 
-**Live demo: https://api.thefoyers.club**
 
 ## This platform is fully self-hosted on our own private VPS
 
